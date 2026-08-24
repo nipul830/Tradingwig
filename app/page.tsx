@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import PineWorkspace from "./components/PineWorkspace";
 
 type ChartConfig = { symbol: string; interval: string; label: string };
 
@@ -92,7 +93,7 @@ export default function Home() {
         <aside className="sidebar">
           <div className="panel-title">Watchlist</div>
           {watchlist.map((symbol, index) => (
-            <button key={symbol} className={`watch ${index === 0 ? "active" : ""}`} onClick={() => updateSymbol(0, symbol)}>
+            <button key={symbol} className={`watch ${index === 0 ? "active" : ""}`} onClick={() => { setTab("Signals"); updateSymbol(0, symbol); }}>
               <span>{symbol}</span><small>{index === 0 ? "Gold" : ""}</small>
             </button>
           ))}
@@ -103,49 +104,35 @@ export default function Home() {
         </aside>
 
         <section className="center">
-          <div className="toolbar">
-            <span className="layout-label">Layout</span>
-            {[1, 2, 4].map((count) => (
-              <button key={count} className={`layout-btn ${layout === count ? "active" : ""}`} onClick={() => setLayout(count)} aria-label={`${count} chart layout`}>
-                {count === 1 ? "□" : count === 2 ? "▥" : "⊞"}
-              </button>
-            ))}
-            <div className="spacer" />
-            <button className="btn" onClick={() => setTab("Settings")}>Settings</button>
-          </div>
+          {tab === "Pine Scripts" ? <PineWorkspace /> : <>
+            <div className="toolbar">
+              <span className="layout-label">Layout</span>
+              {[1, 2, 4].map((count) => (
+                <button key={count} className={`layout-btn ${layout === count ? "active" : ""}`} onClick={() => setLayout(count)} aria-label={`${count} chart layout`}>
+                  {count === 1 ? "□" : count === 2 ? "▥" : "⊞"}
+                </button>
+              ))}
+              <div className="spacer" />
+              <button className="btn" onClick={() => setTab("Settings")}>Settings</button>
+            </div>
 
-          <div className="charts">
-            {visibleCharts.map((chart, index) => (
-              <article className="chart-card" key={index}>
-                <div className="chart-head">
-                  <input
-                    className="symbol-input"
-                    value={chart.symbol}
-                    onChange={(event) => updateSymbol(index, event.target.value)}
-                    aria-label={`Chart ${index + 1} symbol`}
-                  />
-                  <div className="timeframes">
-                    {intervals.map((item) => (
-                      <button
-                        key={item.interval}
-                        className={`timeframe ${chart.interval === item.interval ? "active" : ""}`}
-                        onClick={() => updateChart(index, item)}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
+            <div className="charts">
+              {visibleCharts.map((chart, index) => (
+                <article className="chart-card" key={index}>
+                  <div className="chart-head">
+                    <input className="symbol-input" value={chart.symbol} onChange={(event) => updateSymbol(index, event.target.value)} aria-label={`Chart ${index + 1} symbol`} />
+                    <div className="timeframes">
+                      {intervals.map((item) => (
+                        <button key={item.interval} className={`timeframe ${chart.interval === item.interval ? "active" : ""}`} onClick={() => updateChart(index, item)}>{item.label}</button>
+                      ))}
+                    </div>
+                    <span className="chart-actions">TradingView</span>
                   </div>
-                  <span className="chart-actions">TradingView</span>
-                </div>
-                <iframe
-                  className="chart-frame"
-                  src={chartUrl(chart.symbol || "XAUUSD", chart.interval, index)}
-                  title={`${chart.symbol} ${chart.label} TradingView chart`}
-                  allowFullScreen
-                />
-              </article>
-            ))}
-          </div>
+                  <iframe className="chart-frame" src={chartUrl(chart.symbol || "XAUUSD", chart.interval, index)} title={`${chart.symbol} ${chart.label} TradingView chart`} allowFullScreen />
+                </article>
+              ))}
+            </div>
+          </>}
         </section>
 
         <aside className="rightbar">
@@ -156,7 +143,7 @@ export default function Home() {
             <div className="signal"><div className="signal-row"><span className="signal-buy">BUY</span><span className="muted">20:14:22</span></div><div className="signal-row"><span>BTCUSD</span><span className="muted">116240</span></div></div>
           </>}
           {tab === "Webhooks" && <div className="signal"><div className="muted">Endpoint</div><div style={{ marginTop: 7, wordBreak: "break-all" }}>https://your-domain/api/webhook/tradingview</div><div className="muted" style={{ marginTop: 12 }}>Secret validation: planned for backend phase</div></div>}
-          {tab === "Pine Scripts" && <div className="signal"><div style={{ fontWeight: 700 }}>Pine Script workspace</div><div className="muted" style={{ marginTop: 7 }}>Script storage and editor are next. Execution remains in TradingView.</div></div>}
+          {tab === "Pine Scripts" && <div className="signal"><div style={{ fontWeight: 700 }}>Pine Script workspace</div><div className="muted" style={{ marginTop: 7 }}>Editor loaded in the main workspace.</div></div>}
           {tab === "Logs" && <div className="signal"><div className="signal-row"><span>Webhook received</span><span className="muted">✓</span></div><div className="signal-row" style={{ marginTop: 9 }}><span>Validation</span><span className="muted">—</span></div></div>}
           {tab === "Settings" && <div className="signal"><div style={{ fontWeight: 700 }}>Workspace settings</div><div className="muted" style={{ marginTop: 7 }}>Layout and chart settings are saved automatically on this device.</div></div>}
         </aside>
