@@ -1,9 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import PineWorkspace from "./components/PineWorkspace";
+import { useMemo, useState } from "react";
 
 type ChartConfig = { symbol: string; interval: string; label: string };
+
+const symbols = [
+  { symbol: "BTCUSD", name: "Bitcoin / U.S. Dollar", price: "79,146.01", change: "+1,412.01", percent: "+1.82%", positive: true, icon: "₿" },
+  { symbol: "SOLUSD", name: "SOL / U.S. Dollar", price: "96.05", change: "+0.62", percent: "+0.65%", positive: true, icon: "S" },
+  { symbol: "XAUUSD", name: "Gold Spot / U.S. Dollar", price: "4,654.08", change: "+51.095", percent: "+1.11%", positive: true, icon: "Au" },
+  { symbol: "ETHUSD", name: "Ethereum / U.S. Dollar", price: "2,480.28", change: "+16.87", percent: "+0.68%", positive: true, icon: "◆" },
+  { symbol: "USDCHF", name: "U.S. Dollar / Swiss Franc", price: "0.8023", change: "+0.00099", percent: "+0.12%", positive: true, icon: "$" },
+  { symbol: "EURUSD", name: "Euro / U.S. Dollar", price: "1.1663", change: "−0.00135", percent: "−0.12%", positive: false, icon: "€" },
+  { symbol: "AUDUSD", name: "Australian Dollar / U.S. Dollar", price: "0.7149", change: "−0.00210", percent: "−0.29%", positive: false, icon: "A$" },
+];
+
+const intervals = [
+  { interval: "1", label: "1m" },
+  { interval: "5", label: "5m" },
+  { interval: "15", label: "15m" },
+  { interval: "60", label: "1H" },
+  { interval: "240", label: "4H" },
+  { interval: "D", label: "1D" },
+];
 
 const defaultCharts: ChartConfig[] = [
   { symbol: "XAUUSD", interval: "5", label: "5m" },
@@ -11,8 +29,6 @@ const defaultCharts: ChartConfig[] = [
   { symbol: "XAUUSD", interval: "60", label: "1H" },
   { symbol: "XAUUSD", interval: "240", label: "4H" },
 ];
-
-const watchlist = ["XAUUSD", "BTCUSD", "EURUSD", "NAS100", "US30"];
 
 function chartUrl(symbol: string, interval: string, index: number) {
   const params = new URLSearchParams({
@@ -22,9 +38,9 @@ function chartUrl(symbol: string, interval: string, index: number) {
     hide_side_toolbar: "0",
     allow_symbol_change: "1",
     save_image: "1",
-    toolbarbg: "#131722",
+    toolbarbg: "#ffffff",
     studies: "[]",
-    theme: "dark",
+    theme: "light",
     style: "1",
     timezone: "Etc/UTC",
     withdateranges: "1",
@@ -38,127 +54,118 @@ function chartUrl(symbol: string, interval: string, index: number) {
 }
 
 export default function Home() {
+  const [page, setPage] = useState<"watchlist" | "chart">("watchlist");
   const [charts, setCharts] = useState<ChartConfig[]>(defaultCharts);
   const [layout, setLayout] = useState(1);
-  const [tab, setTab] = useState("Signals");
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    try {
-      const saved = window.localStorage.getItem("tradingwig-workspace-v2");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.charts) && parsed.charts.length >= 4) setCharts(parsed.charts);
-        if ([1, 2, 4].includes(parsed.layout)) setLayout(parsed.layout);
-      }
-    } catch {
-      // Keep clean defaults when saved workspace data is invalid.
-    } finally {
-      setReady(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    window.localStorage.setItem("tradingwig-workspace-v2", JSON.stringify({ charts, layout }));
-  }, [charts, layout, ready]);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
 
   const visibleCharts = useMemo(() => charts.slice(0, layout), [charts, layout]);
 
-  function updateSymbol(index: number, symbol: string) {
-    const clean = symbol.toUpperCase().replace(/[^A-Z0-9._-]/g, "");
-    setCharts((current) => current.map((chart, i) => (i === index ? { ...chart, symbol: clean } : chart)));
+  function openSymbol(symbol: string) {
+    setCharts((current) => current.map((chart, i) => (i === 0 ? { ...chart, symbol } : chart)));
+    setLayout(1);
+    setPage("chart");
+  }
+
+  function setInterval(index: number, interval: string, label: string) {
+    setCharts((current) => current.map((chart, i) => (i === index ? { ...chart, interval, label } : chart)));
+  }
+
+  if (page === "watchlist") {
+    return (
+      <main className="mobile-app watchlist-page">
+        <header className="watchlist-header">
+          <button className="icon-button" aria-label="Menu">•••</button>
+          <div className="tv-logo">T7</div>
+          <button className="icon-button search-icon" aria-label="Search">⌕</button>
+        </header>
+        <div className="watchlist-tabs">
+          <button className="hamburger" aria-label="Open menu">☰</button>
+          <button className="list-tab active">Watchlist</button>
+          <button className="add-list">＋ Add list</button>
+        </div>
+        <section className="quotes">
+          {symbols.map((item) => (
+            <button className="quote-row" key={item.symbol} onClick={() => openSymbol(item.symbol)}>
+              <span className={`asset-icon ${item.symbol}`}>{item.icon}</span>
+              <span className="quote-main">
+                <strong>{item.symbol}</strong>
+                <small>{item.name}</small>
+              </span>
+              <span className="quote-values">
+                <strong>{item.price}</strong>
+                <small className={item.positive ? "up" : "down"}>{item.change} {item.percent}</small>
+              </span>
+            </button>
+          ))}
+        </section>
+        <button className="add-symbol">＋ Add Symbol</button>
+        <nav className="bottom-nav">
+          <button className="nav-item active"><span>▤</span><b>Watchlist</b></button>
+          <button className="nav-item" onClick={() => setPage("chart")}><span>⌁</span><b>Chart</b></button>
+          <button className="nav-item"><span>◈</span><b>Explore</b></button>
+          <button className="nav-item"><span>♧</span><b>Community</b></button>
+          <button className="nav-item"><span>☰</span><b>Menu</b></button>
+        </nav>
+      </main>
+    );
   }
 
   return (
-    <main className="terminal">
-      <header className="topbar">
-        <div className="brand"><span className="brand-mark">TW</span><span>Tradingwig</span></div>
-        <div className="top-actions">
-          <span className="status"><span className="dot" /> Market open</span>
-          <button className="top-link" onClick={() => setTab("Webhooks")}>Webhooks</button>
-          <button className="top-link" onClick={() => setTab("Pine Scripts")}>Pine</button>
-        </div>
-      </header>
-
-      <section className="workspace">
-        <aside className="sidebar">
-          <div className="panel-title">Watchlist</div>
-          {watchlist.map((symbol) => (
-            <button
-              key={symbol}
-              className={`watch ${charts[0]?.symbol === symbol ? "active" : ""}`}
-              onClick={() => {
-                updateSymbol(0, symbol);
-                setTab("Signals");
-                setLayout(1);
-              }}
-            >
-              <span>{symbol}</span>
-            </button>
-          ))}
-        </aside>
-
-        <section className="center">
-          {tab === "Pine Scripts" ? (
-            <PineWorkspace />
-          ) : (
-            <>
-              <div className="toolbar">
-                <div className="toolbar-group">
-                  <span className="toolbar-label">Charts</span>
-                  {[1, 2, 4].map((count) => (
-                    <button
-                      key={count}
-                      className={`layout-btn ${layout === count ? "active" : ""}`}
-                      onClick={() => setLayout(count)}
-                      aria-label={`${count} chart layout`}
-                    >
-                      {count === 1 ? "1" : count === 2 ? "2" : "4"}
-                    </button>
-                  ))}
-                </div>
-                <div className="toolbar-spacer" />
-                <button className="toolbar-link" onClick={() => setTab("Signals")}>Signals</button>
-                <button className="toolbar-link" onClick={() => setTab("Logs")}>Logs</button>
-                <button className="toolbar-link" onClick={() => setTab("Settings")}>Settings</button>
-              </div>
-
-              <div className={`charts layout-${layout}`}>
-                {visibleCharts.map((chart, index) => (
-                  <article className="chart-card" key={index}>
-                    <iframe
-                      className="chart-frame"
-                      src={chartUrl(chart.symbol || "XAUUSD", chart.interval, index)}
-                      title={`${chart.symbol} ${chart.label} TradingView chart`}
-                      allowFullScreen
-                    />
-                  </article>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-
-        <aside className={`rightbar ${tab === "Signals" ? "signals-panel" : ""}`}>
-          <div className="panel-title">{tab}</div>
-          {tab === "Signals" && <>
-            <div className="signal"><div className="signal-row"><span className="signal-buy">BUY</span><span className="muted">20:42</span></div><div className="signal-row"><span>XAUUSD</span><span className="muted">3375.20</span></div></div>
-            <div className="signal"><div className="signal-row"><span className="signal-sell">SELL</span><span className="muted">20:31</span></div><div className="signal-row"><span>XAUUSD</span><span className="muted">3368.40</span></div></div>
-          </>}
-          {tab === "Webhooks" && <div className="signal"><div className="muted">TradingView endpoint</div><div className="endpoint">/api/webhook/tradingview</div></div>}
-          {tab === "Logs" && <div className="signal"><div className="signal-row"><span>Webhook received</span><span className="muted">✓</span></div></div>}
-          {tab === "Settings" && <div className="signal"><div className="signal-row"><span>Workspace</span><span className="muted">Saved</span></div></div>}
-        </aside>
+    <main className="mobile-app chart-page">
+      <section className={`chart-stage layout-${layout}`}>
+        {visibleCharts.map((chart, index) => (
+          <article className="chart-card" key={index}>
+            <iframe
+              className="chart-frame"
+              src={chartUrl(chart.symbol || "XAUUSD", chart.interval, index)}
+              title={`${chart.symbol} ${chart.label} TradingView chart`}
+              allowFullScreen
+            />
+          </article>
+        ))}
       </section>
 
-      <footer className="bottom">
-        <span>Tradingwig</span>
-        <span className="bottom-separator">•</span>
-        <span>TradingView charts</span>
-        <span className="toolbar-spacer" />
-        <span>UTC</span>
-      </footer>
+      <section className="chart-controls">
+        <div className="chart-symbol-strip">
+          <button className="control-symbol" onClick={() => setPage("watchlist")}>‹</button>
+          <button className="control-symbol selected">{charts[0].symbol}</button>
+          {intervals.map((item) => (
+            <button
+              key={item.interval}
+              className={`control-timeframe ${charts[0].interval === item.interval ? "selected" : ""}`}
+              onClick={() => setInterval(0, item.interval, item.label)}
+            >{item.label}</button>
+          ))}
+        </div>
+        <div className="tool-row">
+          <button className={`tool-button ${toolsOpen ? "active" : ""}`} onClick={() => { setToolsOpen(!toolsOpen); setLayoutOpen(false); }} aria-label="Drawing tools">✎</button>
+          <button className="tool-button" aria-label="Magnet">⌁</button>
+          <button className="tool-button more" aria-label="More tools">•••</button>
+          <button className="tool-button" aria-label="Undo">↶</button>
+          <div className="tool-spacer" />
+          <button className={`layout-button ${layoutOpen ? "active" : ""}`} onClick={() => { setLayoutOpen(!layoutOpen); setToolsOpen(false); }} aria-label="Chart layout">▦</button>
+        </div>
+        {toolsOpen && (
+          <div className="tools-menu">
+            <button>Trend Line</button><button>Horizontal Line</button><button>Rectangle</button><button>Fib Retracement</button>
+          </div>
+        )}
+        {layoutOpen && (
+          <div className="layout-menu">
+            {[1, 2, 4].map((count) => <button key={count} className={layout === count ? "selected" : ""} onClick={() => { setLayout(count); setLayoutOpen(false); }}>{count} Chart{count > 1 ? "s" : ""}</button>)}
+          </div>
+        )}
+      </section>
+
+      <nav className="bottom-nav">
+        <button className="nav-item" onClick={() => setPage("watchlist")}><span>▤</span><b>Watchlist</b></button>
+        <button className="nav-item active"><span>⌁</span><b>Chart</b></button>
+        <button className="nav-item"><span>◈</span><b>Explore</b></button>
+        <button className="nav-item"><span>♧</span><b>Community</b></button>
+        <button className="nav-item"><span>☰</span><b>Menu</b></button>
+      </nav>
     </main>
   );
 }
