@@ -1,40 +1,80 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-const initialCharts = [
+type ChartConfig = { symbol: string; interval: string; label: string };
+
+const intervals = [
+  { interval: "1", label: "1m" },
+  { interval: "5", label: "5m" },
+  { interval: "15", label: "15m" },
+  { interval: "60", label: "1H" },
+  { interval: "240", label: "4H" },
+  { interval: "D", label: "1D" },
+];
+
+const defaultCharts: ChartConfig[] = [
   { symbol: "XAUUSD", interval: "5", label: "5m" },
   { symbol: "XAUUSD", interval: "15", label: "15m" },
   { symbol: "XAUUSD", interval: "60", label: "1H" },
   { symbol: "XAUUSD", interval: "240", label: "4H" },
 ];
 
-function chartUrl(symbol: string, interval: string) {
-  const query = new URLSearchParams({
+const watchlist = ["XAUUSD", "BTCUSD", "EURUSD", "NAS100", "US30"];
+
+function chartUrl(symbol: string, interval: string, index: number) {
+  const params = new URLSearchParams({
+    frameElementId: `tradingview_widget_${index}`,
     symbol: `OANDA:${symbol}`,
     interval,
+    hidesidetoolbar: "0",
+    symboledit: "1",
+    saveimage: "0",
+    toolbarbg: "#0b0e12",
+    studies: "[]",
     theme: "dark",
     style: "1",
     timezone: "Etc/UTC",
-    locale: "en",
-    withdateranges: "true",
-    hide_side_toolbar: "false",
-    allow_symbol_change: "true",
-    save_image: "false",
+    withdateranges: "1",
     hideideas: "1",
   });
-  return `https://www.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=${encodeURIComponent(`OANDA:${symbol}`)}&interval=${interval}&hidesidetoolbar=0&symboledit=1&saveimage=0&toolbarbg=%230b0e12&studies=[]&theme=dark&style=1&timezone=Etc%2FUTC&withdateranges=1&hideideas=1`;
+  return `https://www.tradingview.com/widgetembed/?${params.toString()}`;
 }
 
 export default function Home() {
-  const [charts, setCharts] = useState(initialCharts);
+  const [charts, setCharts] = useState<ChartConfig[]>(defaultCharts);
   const [layout, setLayout] = useState(4);
   const [tab, setTab] = useState("Signals");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("tradingwig-workspace");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.charts)) setCharts(parsed.charts);
+        if ([1, 2, 4].includes(parsed.layout)) setLayout(parsed.layout);
+      }
+    } catch {
+      // Ignore malformed local workspace data.
+    } finally {
+      setReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    window.localStorage.setItem("tradingwig-workspace", JSON.stringify({ charts, layout }));
+  }, [charts, layout, ready]);
 
   const visibleCharts = useMemo(() => charts.slice(0, layout), [charts, layout]);
 
+  function updateChart(index: number, patch: Partial<ChartConfig>) {
+    setCharts((current) => current.map((chart, i) => (i === index ? { ...chart, ...patch } : chart)));
+  }
+
   function updateSymbol(index: number, symbol: string) {
-    setCharts((current) => current.map((chart, i) => (i === index ? { ...chart, symbol } : chart)));
+    updateChart(index, { symbol: symbol.toUpperCase().replace(/[^A-Z0-9._-]/g, "") });
   }
 
   return (
@@ -42,7 +82,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand"><span className="brand-mark">TW</span><span>Tradingwig</span></div>
         <div className="top-actions">
-          <span className="status"><span className="dot" /> Webhook ready</span>
+          <span className="status"><span className="dot" /> Workspace saved</span>
           <button className="btn" onClick={() => setTab("Webhooks")}>Webhook</button>
           <button className="btn" onClick={() => setTab("Pine Scripts")}>Pine Scripts</button>
         </div>
@@ -51,7 +91,7 @@ export default function Home() {
       <section className="workspace">
         <aside className="sidebar">
           <div className="panel-title">Watchlist</div>
-          {["XAUUSD", "BTCUSD", "EURUSD", "NAS100", "US30"].map((symbol, index) => (
+          {watchlist.map((symbol, index) => (
             <button key={symbol} className={`watch ${index === 0 ? "active" : ""}`} onClick={() => updateSymbol(0, symbol)}>
               <span>{symbol}</span><small>{index === 0 ? "Gold" : ""}</small>
             </button>
@@ -78,13 +118,28 @@ export default function Home() {
             {visibleCharts.map((chart, index) => (
               <article className="chart-card" key={index}>
                 <div className="chart-head">
-                  <span className="chart-symbol">{chart.symbol}</span>
-                  <span className="chart-time">{chart.label}</span>
+                  <input
+                    className="symbol-input"
+                    value={chart.symbol}
+                    onChange={(event) => updateSymbol(index, event.target.value)}
+                    aria-label={`Chart ${index + 1} symbol`}
+                  />
+                  <div className="timeframes">
+                    {intervals.map((item) => (
+                      <button
+                        key={item.interval}
+                        className={`timeframe ${chart.interval === item.interval ? "active" : ""}`}
+                        onClick={() => updateChart(index, item)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
                   <span className="chart-actions">TradingView</span>
                 </div>
                 <iframe
                   className="chart-frame"
-                  src={chartUrl(chart.symbol, chart.interval)}
+                  src={chartUrl(chart.symbol || "XAUUSD", chart.interval, index)}
                   title={`${chart.symbol} ${chart.label} TradingView chart`}
                   allowFullScreen
                 />
@@ -100,10 +155,10 @@ export default function Home() {
             <div className="signal"><div className="signal-row"><span className="signal-sell">SELL</span><span className="muted">20:31:04</span></div><div className="signal-row"><span>XAUUSD</span><span className="muted">3368.40</span></div></div>
             <div className="signal"><div className="signal-row"><span className="signal-buy">BUY</span><span className="muted">20:14:22</span></div><div className="signal-row"><span>BTCUSD</span><span className="muted">116240</span></div></div>
           </>}
-          {tab === "Webhooks" && <div className="signal"><div className="muted">Endpoint</div><div style={{ marginTop: 7, wordBreak: "break-all" }}>https://your-domain/api/webhook/tradingview</div><div className="muted" style={{ marginTop: 12 }}>Secret validation: enabled</div></div>}
-          {tab === "Pine Scripts" && <div className="signal"><div style={{ fontWeight: 700 }}>Pine Script workspace</div><div className="muted" style={{ marginTop: 7 }}>Scripts will be stored here. Execution remains in TradingView.</div></div>}
-          {tab === "Logs" && <div className="signal"><div className="signal-row"><span>Webhook received</span><span className="muted">✓</span></div><div className="signal-row" style={{ marginTop: 9 }}><span>Validation</span><span className="muted">✓</span></div></div>}
-          {tab === "Settings" && <div className="signal"><div style={{ fontWeight: 700 }}>Workspace settings</div><div className="muted" style={{ marginTop: 7 }}>Chart layout persistence and symbol sync will be added next.</div></div>}
+          {tab === "Webhooks" && <div className="signal"><div className="muted">Endpoint</div><div style={{ marginTop: 7, wordBreak: "break-all" }}>https://your-domain/api/webhook/tradingview</div><div className="muted" style={{ marginTop: 12 }}>Secret validation: planned for backend phase</div></div>}
+          {tab === "Pine Scripts" && <div className="signal"><div style={{ fontWeight: 700 }}>Pine Script workspace</div><div className="muted" style={{ marginTop: 7 }}>Script storage and editor are next. Execution remains in TradingView.</div></div>}
+          {tab === "Logs" && <div className="signal"><div className="signal-row"><span>Webhook received</span><span className="muted">✓</span></div><div className="signal-row" style={{ marginTop: 9 }}><span>Validation</span><span className="muted">—</span></div></div>}
+          {tab === "Settings" && <div className="signal"><div style={{ fontWeight: 700 }}>Workspace settings</div><div className="muted" style={{ marginTop: 7 }}>Layout and chart settings are saved automatically on this device.</div></div>}
         </aside>
       </section>
 
