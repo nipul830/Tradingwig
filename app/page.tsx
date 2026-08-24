@@ -5,10 +5,10 @@ import { useMemo, useState } from "react";
 type ChartConfig = { symbol: string; interval: string; label: string };
 
 const symbols = [
-  { symbol: "BTCUSD", name: "Bitcoin / U.S. Dollar", price: "79,146.01", change: "+1,412.01", percent: "+1.82%", positive: true, icon: "₿" },
-  { symbol: "SOLUSD", name: "SOL / U.S. Dollar", price: "96.05", change: "+0.62", percent: "+0.65%", positive: true, icon: "S" },
+  { symbol: "BTCUSD", name: "Bitcoin / TetherUS", price: "79,146.01", change: "+1,412.01", percent: "+1.82%", positive: true, icon: "₿" },
+  { symbol: "SOLUSD", name: "SOL / TetherUS", price: "96.05", change: "+0.62", percent: "+0.65%", positive: true, icon: "S" },
   { symbol: "XAUUSD", name: "Gold Spot / U.S. Dollar", price: "4,654.08", change: "+51.095", percent: "+1.11%", positive: true, icon: "Au" },
-  { symbol: "ETHUSD", name: "Ethereum / U.S. Dollar", price: "2,480.28", change: "+16.87", percent: "+0.68%", positive: true, icon: "◆" },
+  { symbol: "ETHUSD", name: "Ethereum / TetherUS", price: "2,480.28", change: "+16.87", percent: "+0.68%", positive: true, icon: "◆" },
   { symbol: "USDCHF", name: "U.S. Dollar / Swiss Franc", price: "0.8023", change: "+0.00099", percent: "+0.12%", positive: true, icon: "$" },
   { symbol: "EURUSD", name: "Euro / U.S. Dollar", price: "1.1663", change: "−0.00135", percent: "−0.12%", positive: false, icon: "€" },
   { symbol: "AUDUSD", name: "Australian Dollar / U.S. Dollar", price: "0.7149", change: "−0.00210", percent: "−0.29%", positive: false, icon: "A$" },
@@ -35,7 +35,7 @@ function chartUrl(symbol: string, interval: string, index: number) {
     frameElementId: `tradingview_widget_${index}`,
     symbol: `OANDA:${symbol}`,
     interval,
-    hide_side_toolbar: "0",
+    hide_side_toolbar: "1",
     allow_symbol_change: "1",
     save_image: "1",
     toolbarbg: "#ffffff",
@@ -139,14 +139,18 @@ export default function Home() {
             >{item.label}</button>
           ))}
         </div>
+
         <div className="tool-row">
           <button className={`tool-button ${toolsOpen ? "active" : ""}`} onClick={() => { setToolsOpen(!toolsOpen); setLayoutOpen(false); }} aria-label="Drawing tools">✎</button>
           <button className="tool-button" aria-label="Magnet">⌁</button>
           <button className="tool-button more" aria-label="More tools">•••</button>
           <button className="tool-button" aria-label="Undo">↶</button>
-          <div className="tool-spacer" />
-          <button className={`layout-button ${layoutOpen ? "active" : ""}`} onClick={() => { setLayoutOpen(!layoutOpen); setToolsOpen(false); }} aria-label="Chart layout">▦</button>
         </div>
+
+        <div className="layout-row">
+          <button className={`layout-button ${layoutOpen ? "active" : ""}`} onClick={() => { setLayoutOpen(!layoutOpen); setToolsOpen(false); }} aria-label="Chart layout">▦ <span>Layout</span></button>
+        </div>
+
         {toolsOpen && (
           <div className="tools-menu">
             <button>Trend Line</button><button>Horizontal Line</button><button>Rectangle</button><button>Fib Retracement</button>
