@@ -5,7 +5,6 @@ button { font: inherit; cursor: pointer; }
 
 .mobile-app { width: 100%; height: 100dvh; min-height: 100vh; background: #fff; color: #131722; display: flex; flex-direction: column; overflow: hidden; }
 
-/* Watchlist — clean TradingView-mobile style */
 .watchlist-page { position: relative; }
 .watchlist-header { height: 82px; flex: 0 0 82px; display: flex; align-items: center; justify-content: space-between; padding: 20px 28px 8px; background: #fff; }
 .icon-button { width: 40px; height: 40px; border: 0; background: transparent; color: #111; font-size: 25px; line-height: 1; padding: 0; }
@@ -37,7 +36,7 @@ button { font: inherit; cursor: pointer; }
 .down { color: #e04a5a; }
 .add-symbol { align-self: center; margin: 14px 0 16px; border: 0; border-radius: 20px; padding: 11px 28px; background: #f2f2f4; color: #171717; font-size: 17px; font-weight: 650; }
 
-/* Chart — the chart itself stays clean; controls live only below it */
+/* Clean chart: no custom content inside the TradingView canvas. */
 .chart-page { background: #fff; }
 .chart-stage { flex: 1; min-height: 0; display: grid; gap: 1px; background: #e6e7ea; }
 .chart-stage.layout-1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
@@ -52,25 +51,25 @@ button { font: inherit; cursor: pointer; }
 .control-symbol:first-child { font-size: 28px; padding: 0 4px; }
 .control-symbol.selected { color: #111; font-weight: 750; }
 .control-timeframe.selected { color: #111; font-weight: 800; }
-.tool-row { height: 54px; display: flex; align-items: center; gap: 5px; padding: 0 16px; }
-.tool-button, .layout-button { width: 42px; height: 42px; border: 0; border-radius: 9px; background: #fff; color: #171717; font-size: 25px; display: grid; place-items: center; }
-.tool-button.active, .layout-button.active { background: #f0f1f3; }
+.tool-row { height: 54px; display: flex; align-items: center; gap: 5px; padding: 0 16px; border-bottom: 1px solid #ededee; }
+.tool-button { width: 42px; height: 42px; border: 0; border-radius: 9px; background: #fff; color: #171717; font-size: 25px; display: grid; place-items: center; }
+.tool-button.active { background: #f0f1f3; }
 .tool-button.more { font-size: 18px; letter-spacing: 2px; }
-.tool-spacer { flex: 1; }
-.layout-button { font-size: 24px; }
-.tools-menu, .layout-menu { position: absolute; bottom: 52px; left: 10px; display: flex; flex-direction: column; min-width: 190px; padding: 7px; border: 1px solid #dedee2; border-radius: 10px; background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,.14); z-index: 20; }
-.layout-menu { left: auto; right: 10px; min-width: 140px; }
+.layout-row { height: 48px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #ededee; }
+.layout-button { min-width: 110px; height: 36px; border: 0; border-radius: 9px; background: #fff; color: #171717; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.layout-button span { font-size: 14px; font-weight: 650; }
+.layout-button.active { background: #f0f1f3; }
+.tools-menu, .layout-menu { position: absolute; bottom: 102px; left: 10px; display: flex; flex-direction: column; min-width: 190px; padding: 7px; border: 1px solid #dedee2; border-radius: 10px; background: #fff; box-shadow: 0 8px 28px rgba(0,0,0,.14); z-index: 20; }
+.layout-menu { left: 50%; right: auto; transform: translateX(-50%); bottom: 50px; min-width: 140px; }
 .tools-menu button, .layout-menu button { border: 0; background: transparent; text-align: left; padding: 10px 12px; border-radius: 7px; color: #222; }
 .tools-menu button:hover, .layout-menu button:hover, .layout-menu button.selected { background: #f0f1f3; }
 
-/* Bottom navigation */
 .bottom-nav { height: 76px; flex: 0 0 76px; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; border-top: 1px solid #e7e7e9; background: #fff; padding-bottom: max(4px, env(safe-area-inset-bottom)); }
 .nav-item { min-width: 0; height: 70px; border: 0; background: transparent; color: #111; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; }
 .nav-item span { font-size: 28px; line-height: 1; }
 .nav-item b { font-size: 12px; font-weight: 650; }
 .nav-item.active span { font-weight: 900; }
 
-/* Keep desktop clean too */
 @media (min-width: 761px) {
   .mobile-app { max-width: 100%; }
   .watchlist-header { padding-left: 44px; padding-right: 44px; }
