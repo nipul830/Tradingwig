@@ -28,9 +28,9 @@ function chartUrl(symbol: string, interval: string, index: number) {
     frameElementId: `tradingview_widget_${index}`,
     symbol: `OANDA:${symbol}`,
     interval,
-    hidesidetoolbar: "0",
-    symboledit: "1",
-    saveimage: "0",
+    hide_side_toolbar: "0",
+    allow_symbol_change: "1",
+    save_image: "1",
     toolbarbg: "#0b0e12",
     studies: "[]",
     theme: "dark",
@@ -38,13 +38,16 @@ function chartUrl(symbol: string, interval: string, index: number) {
     timezone: "Etc/UTC",
     withdateranges: "1",
     hideideas: "1",
+    hide_volume: "0",
+    enable_publishing: "0",
+    hide_top_toolbar: "0",
   });
   return `https://www.tradingview.com/widgetembed/?${params.toString()}`;
 }
 
 export default function Home() {
   const [charts, setCharts] = useState<ChartConfig[]>(defaultCharts);
-  const [layout, setLayout] = useState(4);
+  const [layout, setLayout] = useState(1);
   const [tab, setTab] = useState("Signals");
   const [ready, setReady] = useState(false);
 
@@ -83,7 +86,7 @@ export default function Home() {
       <header className="topbar">
         <div className="brand"><span className="brand-mark">TW</span><span>Tradingwig</span></div>
         <div className="top-actions">
-          <span className="status"><span className="dot" /> Workspace saved</span>
+          <span className="status"><span className="dot" /> Live chart</span>
           <button className="btn" onClick={() => setTab("Webhooks")}>Webhook</button>
           <button className="btn" onClick={() => setTab("Pine Scripts")}>Pine Scripts</button>
         </div>
@@ -93,7 +96,7 @@ export default function Home() {
         <aside className="sidebar">
           <div className="panel-title">Watchlist</div>
           {watchlist.map((symbol, index) => (
-            <button key={symbol} className={`watch ${index === 0 ? "active" : ""}`} onClick={() => { setTab("Signals"); updateSymbol(0, symbol); }}>
+            <button key={symbol} className={`watch ${index === 0 ? "active" : ""}`} onClick={() => { setTab("Signals"); updateSymbol(0, symbol); setLayout(1); }}>
               <span>{symbol}</span><small>{index === 0 ? "Gold" : ""}</small>
             </button>
           ))}
@@ -106,17 +109,18 @@ export default function Home() {
         <section className="center">
           {tab === "Pine Scripts" ? <PineWorkspace /> : <>
             <div className="toolbar">
-              <span className="layout-label">Layout</span>
+              <span className="layout-label">Charts</span>
               {[1, 2, 4].map((count) => (
                 <button key={count} className={`layout-btn ${layout === count ? "active" : ""}`} onClick={() => setLayout(count)} aria-label={`${count} chart layout`}>
                   {count === 1 ? "□" : count === 2 ? "▥" : "⊞"}
                 </button>
               ))}
+              <span className="toolbar-help">1 chart is best for analysis</span>
               <div className="spacer" />
               <button className="btn" onClick={() => setTab("Settings")}>Settings</button>
             </div>
 
-            <div className="charts">
+            <div className={`charts layout-${layout}`}>
               {visibleCharts.map((chart, index) => (
                 <article className="chart-card" key={index}>
                   <div className="chart-head">
