@@ -1,276 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
-type Candle = { time: number; o: number; h: number; l: number; c: number; v: number };
-type SymbolInfo = { symbol: string; name: string; binance: string; icon: string };
+type Candle = { time:number; o:number; h:number; l:number; c:number; v:number };
+type SymbolInfo = { symbol:string; name:string; binance:string; icon:string };
 
 const symbols: SymbolInfo[] = [
-  { symbol: "BTCUSD", name: "Bitcoin / TetherUS", binance: "btcusdt", icon: "₿" },
-  { symbol: "ETHUSD", name: "Ethereum / TetherUS", binance: "ethusdt", icon: "◆" },
-  { symbol: "SOLUSD", name: "SOL / TetherUS", binance: "solusdt", icon: "S" },
-  { symbol: "BNBUSD", name: "BNB / TetherUS", binance: "bnbusdt", icon: "B" },
-  { symbol: "XRPUSD", name: "XRP / TetherUS", binance: "xrpusdt", icon: "X" },
+  {symbol:"BTCUSD",name:"Bitcoin / TetherUS",binance:"btcusdt",icon:"₿"},
+  {symbol:"ETHUSD",name:"Ethereum / TetherUS",binance:"ethusdt",icon:"◆"},
+  {symbol:"SOLUSD",name:"SOL / TetherUS",binance:"solusdt",icon:"S"},
+  {symbol:"BNBUSD",name:"BNB / TetherUS",binance:"bnbusdt",icon:"B"},
+  {symbol:"XRPUSD",name:"XRP / TetherUS",binance:"xrpusdt",icon:"X"},
 ];
-
-const intervals: { value: Interval; label: string }[] = [
-  { value: "1m", label: "1m" }, { value: "5m", label: "5m" }, { value: "15m", label: "15m" },
-  { value: "1h", label: "1H" }, { value: "4h", label: "4H" }, { value: "1d", label: "1D" },
+const intervals:{value:Interval;label:string}[]=[
+  {value:"1m",label:"1m"},{value:"5m",label:"5m"},{value:"15m",label:"15m"},{value:"1h",label:"1H"},{value:"4h",label:"4H"},{value:"1d",label:"1D"}
 ];
+const MAX_CANDLES=500;
+function money(v:number,s:string){if(!Number.isFinite(v))return "—";return v.toLocaleString(undefined,{maximumFractionDigits:s.includes("BTC")||v>=1000?2:v>=1?4:6});}
+async function history(s:string,i:Interval):Promise<Candle[]>{const r=await fetch(`https://api.binance.com/api/v3/klines?symbol=${s.toUpperCase()}&interval=${i}&limit=${MAX_CANDLES}`,{cache:"no-store"});if(!r.ok)throw new Error(`Market data HTTP ${r.status}`);const a=await r.json();return a.map((x:any[])=>({time:+x[0],o:+x[1],h:+x[2],l:+x[3],c:+x[4],v:+x[5]}));}
 
-const DEFAULT_INTERVAL: Interval = "5m";
-const MAX_CANDLES = 500;
-
-function money(v: number, symbol: string) {
-  if (!Number.isFinite(v)) return "—";
-  if (symbol.includes("BTC")) return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (v >= 1000) return v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-  if (v >= 1) return v.toLocaleString(undefined, { maximumFractionDigits: 4 });
-  return v.toLocaleString(undefined, { maximumFractionDigits: 6 });
+type P={x:number;y:number};
+function LiveChart({symbol,interval,onConnection}:{symbol:SymbolInfo;interval:Interval;onConnection:(ok:boolean)=>void}){
+ const canvas=useRef<HTMLCanvasElement|null>(null),box=useRef<HTMLDivElement|null>(null),data=useRef<Candle[]>([]),raf=useRef<number|null>(null),ws=useRef<WebSocket|null>(null);
+ const pointers=useRef<Map<number,P>>(new Map());
+ const view=useRef({zoomX:1,zoomY:1,offset:0,priceShift:0});
+ const gesture=useRef({mode:"none" as "none"|"pan"|"pinch",lastX:0,lastY:0,startD:1,startZoomX:1,startZoomY:1,startOffset:0,startShift:0});
+ const [tick,setTick]=useState(0),[error,setError]=useState("");
+ const draw=useCallback(()=>{const c=canvas.current,p=box.current;if(!c||!p)return;const d=Math.min(2,window.devicePixelRatio||1),w=p.clientWidth,h=p.clientHeight;if(w<20||h<20)return;c.width=w*d;c.height=h*d;c.style.width=`${w}px`;c.style.height=`${h}px`;const x=c.getContext("2d");if(!x)return;x.setTransform(d,0,0,d,0,0);x.clearRect(0,0,w,h);x.fillStyle="#08131b";x.fillRect(0,0,w,h);
+  const left=12,right=78,top=92,bottom=44,volH=Math.max(55,h*.15),chartH=Math.max(100,h-top-bottom-volH),cw=w-left-right,a=data.current;if(!a.length){x.fillStyle="#7e919d";x.font="14px system-ui";x.fillText("Connecting to live market…",18,34);return;}
+  const count=Math.max(18,Math.min(180,Math.round(82/view.current.zoomX))),maxStart=Math.max(0,a.length-count),pad=Math.max(4,Math.min(count*.35,40));
+  const start=Math.max(-pad,Math.min(maxStart+pad,view.current.offset));const first=Math.floor(start),visible=a.slice(Math.max(0,first),Math.min(a.length,first+count+1));
+  const rawHi=Math.max(...visible.map(v=>v.h)),rawLo=Math.min(...visible.map(v=>v.l)),rawRange=rawHi-rawLo||1,center=(rawHi+rawLo)/2+view.current.priceShift*rawRange,range=rawRange/view.current.zoomY,hi=center+range/2,lo=center-range/2,py=(v:number)=>top+(hi-v)/(hi-lo||1)*chartH;
+  const gap=cw/count,body=Math.max(2.5,Math.min(14,gap*.58));
+  x.strokeStyle="#172731";x.lineWidth=1;for(let i=0;i<=6;i++){const y=top+chartH*i/6;x.beginPath();x.moveTo(left,y);x.lineTo(left+cw,y);x.stroke();}for(let i=0;i<=7;i++){const xx=left+cw*i/7;x.beginPath();x.moveTo(xx,top);x.lineTo(xx,top+chartH);x.stroke();}
+  const vmax=Math.max(...visible.map(v=>v.v),1);visible.forEach((v,j)=>{const idx=first+j,xx=left+(idx-start+.5)*gap,up=v.c>=v.o,col=up?"#08d7a1":"#ff5266";if(xx<left-body||xx>left+cw+body)return;x.strokeStyle=col;x.fillStyle=col;x.lineWidth=1.2;x.beginPath();x.moveTo(xx,py(v.h));x.lineTo(xx,py(v.l));x.stroke();x.fillRect(xx-body/2,Math.min(py(v.o),py(v.c)),body,Math.max(2,Math.abs(py(v.c)-py(v.o))));const vh=v.v/vmax*volH*.85;x.globalAlpha=.5;x.fillRect(xx-body/2,top+chartH+volH-vh,body,vh);x.globalAlpha=1;});
+  x.font="12px system-ui";x.fillStyle="#7e919d";for(let i=0;i<=6;i++)x.fillText(money(hi-(hi-lo)*i/6,symbol.symbol),left+cw+8,top+chartH*i/6+4);x.font="600 17px system-ui";x.fillStyle="#edf5f7";x.fillText(symbol.symbol,18,28);x.font="600 12px system-ui";x.fillStyle="#20d7a7";x.fillText("● LIVE",94,28);x.font="600 27px system-ui";x.fillStyle="#f2f6f7";x.fillText(money(a[a.length-1].c,symbol.symbol),18,62);x.font="12px system-ui";x.fillStyle="#20d7a7";x.fillText(interval,18,82);x.fillStyle="#71858f";x.fillText("Volume",left,top+chartH+volH+18);
+ },[interval,symbol.symbol]);
+ useEffect(()=>{let dead=false;setError("");onConnection(false);data.current=[];view.current={zoomX:1,zoomY:1,offset:0,priceShift:0};history(symbol.binance,interval).then(a=>{if(dead)return;data.current=a;setTick(v=>v+1);onConnection(true);const s=`${symbol.binance}@kline_${interval}`;const q=new WebSocket(`wss://stream.binance.com:9443/ws/${s}`);ws.current=q;q.onopen=()=>onConnection(true);q.onmessage=e=>{if(dead)return;try{const k=JSON.parse(e.data).k,n={time:+k.t,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v};const z=data.current.slice(),i=z.findIndex(v=>v.time===n.time);if(i>=0)z[i]=n;else z.push(n);data.current=z.slice(-MAX_CANDLES);setTick(v=>v+1);}catch{}};q.onerror=()=>{if(!dead){onConnection(false);setError("Live stream disconnected")}};q.onclose=()=>{if(!dead)onConnection(false)};}).catch(e=>{if(!dead){setError(e instanceof Error?e.message:"Market data unavailable");onConnection(false)}});return()=>{dead=true;ws.current?.close();ws.current=null}},[symbol.binance,interval,onConnection]);
+ useEffect(()=>{if(raf.current!==null)cancelAnimationFrame(raf.current);raf.current=requestAnimationFrame(()=>{raf.current=null;draw()});return()=>{if(raf.current!==null)cancelAnimationFrame(raf.current)}},[tick,draw]);
+ useEffect(()=>{const r=new ResizeObserver(()=>draw());if(box.current)r.observe(box.current);return()=>r.disconnect()},[draw]);
+ const dist=(a:P,b:P)=>Math.hypot(a.x-b.x,a.y-b.y);
+ const down=(e:React.PointerEvent<HTMLCanvasElement>)=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.current.size===1)gesture.current={mode:"pan",lastX:e.clientX,lastY:e.clientY,startD:1,startZoomX:view.current.zoomX,startZoomY:view.current.zoomY,startOffset:view.current.offset,startShift:view.current.priceShift};else if(pointers.current.size===2){const [a,b]=Array.from(pointers.current.values());gesture.current={mode:"pinch",lastX:0,lastY:0,startD:Math.max(1,dist(a,b)),startZoomX:view.current.zoomX,startZoomY:view.current.zoomY,startOffset:view.current.offset,startShift:view.current.priceShift};}};
+ const move=(e:React.PointerEvent<HTMLCanvasElement>)=>{if(!pointers.current.has(e.pointerId))return;e.preventDefault();pointers.current.set(e.pointerId,{x:e.clientX,y:e.clientY});const g=gesture.current;if(g.mode==="pan"&&pointers.current.size===1){const dx=e.clientX-g.lastX,dy=e.clientY-g.lastY;g.lastX=e.clientX;g.lastY=e.clientY;const count=Math.max(18,Math.min(180,Math.round(82/view.current.zoomX))),step=Math.max(3,(box.current?.clientWidth||600)/count);view.current.offset-=dx/step;view.current.priceShift+=dy/Math.max(1,box.current?.clientHeight||500)*.9/view.current.zoomY;draw();}else if(g.mode==="pinch"&&pointers.current.size>=2){const [a,b]=Array.from(pointers.current.values()),f=dist(a,b)/g.startD;view.current.zoomX=Math.max(.45,Math.min(6,g.startZoomX*f));view.current.zoomY=Math.max(.45,Math.min(6,g.startZoomY*f));draw();}};
+ const up=(e:React.PointerEvent<HTMLCanvasElement>)=>{pointers.current.delete(e.pointerId);try{e.currentTarget.releasePointerCapture(e.pointerId)}catch{}if(pointers.current.size===1){const p=Array.from(pointers.current.values())[0];gesture.current.mode="pan";gesture.current.lastX=p.x;gesture.current.lastY=p.y}else if(!pointers.current.size)gesture.current.mode="none"};
+ const wheel=(e:React.WheelEvent<HTMLCanvasElement>)=>{e.preventDefault();const f=e.deltaY<0?1.12:.89;view.current.zoomX=Math.max(.45,Math.min(6,view.current.zoomX*f));view.current.zoomY=Math.max(.45,Math.min(6,view.current.zoomY*f));draw()};
+ return <div ref={box} className="chart-card" style={{position:"relative",touchAction:"none",overscrollBehavior:"none"}}><canvas ref={canvas} className="candle-canvas" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}/>{error&&<div style={{position:"absolute",top:102,left:18,fontSize:12,color:"#ff5266"}}>{error}</div>}</div>;
 }
 
-async function loadHistory(symbol: string, interval: Interval): Promise<Candle[]> {
-  const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol.toUpperCase()}&interval=${interval}&limit=${MAX_CANDLES}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`Market data HTTP ${res.status}`);
-  const rows = await res.json();
-  return rows.map((r: any[]) => ({ time: Number(r[0]), o: Number(r[1]), h: Number(r[2]), l: Number(r[3]), c: Number(r[4]), v: Number(r[5]) }));
-}
+function Watchlist({onOpen}:{onOpen:(s:SymbolInfo)=>void}){const [q,setQ]=useState<Record<string,{p:number;ch:number;pct:number}>>({});useEffect(()=>{const streams=symbols.map(s=>`${s.binance}@ticker`).join("/");const w=new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);w.onmessage=e=>{try{const d=JSON.parse(e.data).data,p=+d.c,o=+d.o;setQ(v=>({...v,[d.s.toLowerCase()]:{p,ch:p-o,pct:(p-o)/o*100}}))}catch{}};return()=>w.close()},[]);return <section className="quotes">{symbols.map(s=>{const v=q[s.binance];return <button className="quote-row" key={s.symbol} onClick={()=>onOpen(s)}><span className={`asset-icon ${s.symbol}`}>{s.icon}</span><span className="quote-main"><strong>{s.symbol}</strong><small>{s.name}</small></span><span className="quote-values"><strong>{v?money(v.p,s.symbol):"…"}</strong><small className={v&&v.pct<0?"down":"up"}>{v?`${v.ch>=0?"+":""}${money(v.ch,s.symbol)} ${v.pct>=0?"+":""}${v.pct.toFixed(2)}%`:"LIVE"}</small></span></button>})}</section>}
 
-type PointerState = { x: number; y: number };
-
-type ViewState = {
-  zoomX: number;
-  zoomY: number;
-  offset: number;
-  priceShift: number;
-};
-
-function LiveChart({ symbol, interval, onConnection }: { symbol: SymbolInfo; interval: Interval; onConnection: (ok: boolean) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const parentRef = useRef<HTMLDivElement | null>(null);
-  const candlesRef = useRef<Candle[]>([]);
-  const raf = useRef<number | null>(null);
-  const socket = useRef<WebSocket | null>(null);
-  const pointers = useRef<Map<number, PointerState>>(new Map());
-  const gesture = useRef({ mode: "none" as "none" | "pan" | "pinch", lastX: 0, lastY: 0, startDistance: 0, startZoomX: 1, startZoomY: 1, startOffset: 0, startPriceShift: 0 });
-  const view = useRef<ViewState>({ zoomX: 1, zoomY: 1, offset: 0, priceShift: 0 });
-  const [candles, setCandles] = useState<Candle[]>([]);
-  const [error, setError] = useState("");
-
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current, parent = parentRef.current;
-    if (!canvas || !parent) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1), w = parent.clientWidth, h = parent.clientHeight;
-    if (w < 20 || h < 20) return;
-    canvas.width = Math.floor(w * dpr); canvas.height = Math.floor(h * dpr);
-    canvas.style.width = `${w}px`; canvas.style.height = `${h}px`;
-    const x = canvas.getContext("2d"); if (!x) return;
-    x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
-    x.fillStyle = "#08131b"; x.fillRect(0, 0, w, h);
-
-    const left = 12, right = 78, top = 92, bottom = 44;
-    const volH = Math.max(55, h * .15), chartH = Math.max(100, h - top - bottom - volH), cw = w - left - right;
-    const all = candlesRef.current;
-    if (!all.length) { x.fillStyle = "#7e919d"; x.font = "14px system-ui"; x.fillText("Connecting to live market…", 18, 34); return; }
-
-    const count = Math.max(18, Math.min(180, Math.round(82 / view.current.zoomX)));
-    const maxStart = Math.max(0, all.length - count);
-    const start = Math.max(0, Math.min(maxStart, Math.round(view.current.offset)));
-    const visible = all.slice(start, start + count);
-    const rawHi = Math.max(...visible.map(c => c.h));
-    const rawLo = Math.min(...visible.map(c => c.l));
-    const rawRange = rawHi - rawLo || 1;
-    const center = (rawHi + rawLo) / 2 + view.current.priceShift * rawRange;
-    const range = rawRange / view.current.zoomY;
-    const hi = center + range / 2;
-    const lo = center - range / 2;
-    const py = (v: number) => top + (hi - v) / (hi - lo || 1) * chartH;
-    const gap = cw / visible.length;
-    const body = Math.max(2.5, Math.min(14, gap * .58));
-
-    x.strokeStyle = "#172731"; x.lineWidth = 1;
-    for (let i = 0; i <= 6; i++) { const y = top + chartH * i / 6; x.beginPath(); x.moveTo(left, y); x.lineTo(left + cw, y); x.stroke(); }
-    for (let i = 0; i <= 7; i++) { const xx = left + cw * i / 7; x.beginPath(); x.moveTo(xx, top); x.lineTo(xx, top + chartH); x.stroke(); }
-
-    const vmax = Math.max(...visible.map(c => c.v), 1);
-    visible.forEach((c, i) => {
-      const xx = left + i * gap + gap / 2, up = c.c >= c.o;
-      const col = up ? "#08d7a1" : "#ff5266";
-      x.strokeStyle = col; x.fillStyle = col; x.lineWidth = Math.max(1, Math.min(2, body / 5));
-      x.beginPath(); x.moveTo(xx, py(c.h)); x.lineTo(xx, py(c.l)); x.stroke();
-      const topBody = Math.min(py(c.o), py(c.c));
-      const bodyHeight = Math.max(2, Math.abs(py(c.c) - py(c.o)));
-      x.fillRect(xx - body / 2, topBody, body, bodyHeight);
-      const vh = (c.v / vmax) * volH * .85;
-      x.globalAlpha = .55; x.fillRect(xx - body / 2, top + chartH + volH - vh, body, vh); x.globalAlpha = 1;
-    });
-
-    x.font = "12px system-ui"; x.fillStyle = "#7e919d";
-    for (let i = 0; i <= 6; i++) x.fillText(money(hi - (hi - lo) * i / 6, symbol.symbol), left + cw + 8, top + chartH * i / 6 + 4);
-    x.font = "600 17px system-ui"; x.fillStyle = "#edf5f7"; x.fillText(symbol.symbol, 18, 28);
-    x.font = "600 12px system-ui"; x.fillStyle = "#20d7a7"; x.fillText("● LIVE", 94, 28);
-    x.font = "600 27px system-ui"; x.fillStyle = "#f2f6f7"; x.fillText(money(visible[visible.length - 1].c, symbol.symbol), 18, 62);
-    x.font = "12px system-ui"; x.fillStyle = "#20d7a7"; x.fillText(interval, 18, 82);
-    x.fillStyle = "#71858f"; x.fillText("Volume", left, top + chartH + volH + 18);
-  }, [interval, symbol.symbol]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setError(""); onConnection(false); candlesRef.current = []; setCandles([]);
-    view.current = { zoomX: 1, zoomY: 1, offset: 0, priceShift: 0 };
-    loadHistory(symbol.binance, interval).then(data => {
-      if (cancelled) return;
-      candlesRef.current = data; setCandles(data); onConnection(true);
-      const stream = `${symbol.binance}@kline_${interval}`;
-      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${stream}`); socket.current = ws;
-      ws.onopen = () => { if (!cancelled) { onConnection(true); setError(""); } };
-      ws.onmessage = e => {
-        if (cancelled) return;
-        try {
-          const k = JSON.parse(e.data).k;
-          const next: Candle = { time: Number(k.t), o: Number(k.o), h: Number(k.h), l: Number(k.l), c: Number(k.c), v: Number(k.v) };
-          const arr = candlesRef.current.slice();
-          const idx = arr.findIndex(c => c.time === next.time);
-          if (idx >= 0) arr[idx] = next; else arr.push(next);
-          candlesRef.current = arr.slice(-MAX_CANDLES); setCandles(candlesRef.current);
-        } catch {}
-      };
-      ws.onerror = () => { if (!cancelled) { onConnection(false); setError("Live stream disconnected"); } };
-      ws.onclose = () => { if (!cancelled) onConnection(false); };
-    }).catch(err => { if (!cancelled) { setError(err instanceof Error ? err.message : "Market data unavailable"); onConnection(false); } });
-    return () => { cancelled = true; socket.current?.close(); socket.current = null; };
-  }, [symbol.binance, interval, onConnection]);
-
-  useEffect(() => {
-    if (raf.current !== null) cancelAnimationFrame(raf.current);
-    raf.current = requestAnimationFrame(() => { raf.current = null; draw(); });
-    return () => { if (raf.current !== null) cancelAnimationFrame(raf.current); };
-  }, [candles, draw]);
-
-  useEffect(() => {
-    const ro = new ResizeObserver(() => draw());
-    if (parentRef.current) ro.observe(parentRef.current);
-    return () => ro.disconnect();
-  }, [draw]);
-
-  const distance = (a: PointerState, b: PointerState) => Math.hypot(a.x - b.x, a.y - b.y);
-  const midpoint = (a: PointerState, b: PointerState) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-
-  const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 1) {
-      gesture.current = { mode: "pan", lastX: e.clientX, lastY: e.clientY, startDistance: 0, startZoomX: view.current.zoomX, startZoomY: view.current.zoomY, startOffset: view.current.offset, startPriceShift: view.current.priceShift };
-    } else if (pointers.current.size === 2) {
-      const [a, b] = Array.from(pointers.current.values());
-      gesture.current = { mode: "pinch", lastX: 0, lastY: 0, startDistance: Math.max(1, distance(a, b)), startZoomX: view.current.zoomX, startZoomY: view.current.zoomY, startOffset: view.current.offset, startPriceShift: view.current.priceShift };
-    }
-  };
-
-  const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    const state = gesture.current;
-    if (state.mode === "pan" && pointers.current.size === 1) {
-      const dx = e.clientX - state.lastX;
-      const dy = e.clientY - state.lastY;
-      state.lastX = e.clientX; state.lastY = e.clientY;
-      const all = candlesRef.current;
-      const count = Math.max(18, Math.min(180, Math.round(82 / view.current.zoomX)));
-      const maxStart = Math.max(0, all.length - count);
-      view.current.offset = Math.max(0, Math.min(maxStart, view.current.offset - dx / Math.max(4, parentRef.current?.clientWidth ? parentRef.current.clientWidth / count : 8)));
-      view.current.priceShift += dy / Math.max(1, parentRef.current?.clientHeight || 500) * 0.9 / view.current.zoomY;
-      draw();
-      return;
-    }
-    if (state.mode === "pinch" && pointers.current.size >= 2) {
-      const [a, b] = Array.from(pointers.current.values());
-      const d = Math.max(1, distance(a, b));
-      const factor = d / state.startDistance;
-      view.current.zoomX = Math.max(.45, Math.min(6, state.startZoomX * factor));
-      view.current.zoomY = Math.max(.45, Math.min(6, state.startZoomY * factor));
-      const mid = midpoint(a, b);
-      const parent = parentRef.current;
-      if (parent) {
-        const centerX = parent.clientWidth / 2;
-        const centerY = parent.clientHeight / 2;
-        const mx = mid.x - parent.getBoundingClientRect().left;
-        const my = mid.y - parent.getBoundingClientRect().top;
-        view.current.offset = state.startOffset - (mx - centerX) / Math.max(5, parent.clientWidth) * (1 - 1 / factor) * Math.max(1, candlesRef.current.length / 5);
-        view.current.priceShift = state.startPriceShift + (my - centerY) / Math.max(5, parent.clientHeight) * (factor - 1) * .45;
-      }
-      draw();
-    }
-  };
-
-  const up = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    pointers.current.delete(e.pointerId);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
-    if (pointers.current.size === 1) {
-      const [p] = Array.from(pointers.current.values());
-      gesture.current.mode = "pan"; gesture.current.lastX = p.x; gesture.current.lastY = p.y;
-    } else if (pointers.current.size === 0) {
-      gesture.current.mode = "none";
-    }
-  };
-
-  const wheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const factor = e.deltaY < 0 ? 1.12 : 0.89;
-    view.current.zoomX = Math.max(.45, Math.min(6, view.current.zoomX * factor));
-    view.current.zoomY = Math.max(.45, Math.min(6, view.current.zoomY * factor));
-    draw();
-  };
-
-  return <div ref={parentRef} className="chart-card" style={{ position: "relative", touchAction: "none", overscrollBehavior: "none" }}>
-    <canvas ref={canvasRef} className="candle-canvas" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel} />
-    {error && <div style={{ position: "absolute", top: 102, left: 18, fontSize: 12, color: "#ff5266", pointerEvents: "none" }}>{error}</div>}
-  </div>;
-}
-
-function Watchlist({ onOpen }: { onOpen: (s: SymbolInfo) => void }) {
-  const [quotes, setQuotes] = useState<Record<string, { price: number; change: number; pct: number }>>({});
-  useEffect(() => {
-    const streams = symbols.map(s => `${s.binance}@ticker`).join("/");
-    const ws = new WebSocket(`wss://stream.binance.com:9443/stream?streams=${streams}`);
-    ws.onmessage = e => { try { const d = JSON.parse(e.data).data; const price = Number(d.c), open = Number(d.o); setQuotes(q => ({ ...q, [d.s.toLowerCase()]: { price, change: price - open, pct: ((price - open) / open) * 100 } })); } catch {} };
-    return () => ws.close();
-  }, []);
-  return <section className="quotes">{symbols.map(item => { const q = quotes[item.binance]; const pct = q?.pct ?? 0; return <button className="quote-row" key={item.symbol} onClick={() => onOpen(item)}>
-    <span className={`asset-icon ${item.symbol}`}>{item.icon}</span><span className="quote-main"><strong>{item.symbol}</strong><small>{item.name}</small></span>
-    <span className="quote-values"><strong>{q ? money(q.price, item.symbol) : "…"}</strong><small className={pct >= 0 ? "up" : "down"}>{q ? `${q.change >= 0 ? "+" : ""}${money(q.change, item.symbol)} ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : "LIVE"}</small></span>
-  </button>; })}</section>;
-}
-
-export default function Home() {
-  const [page, setPage] = useState<"watchlist" | "chart">("watchlist");
-  const [active, setActive] = useState<SymbolInfo>(symbols[0]);
-  const [interval, setInterval] = useState<Interval>(DEFAULT_INTERVAL);
-  const [connected, setConnected] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
-  const [layoutOpen, setLayoutOpen] = useState(false);
-  const [layout, setLayout] = useState(1);
-  const onConnection = useCallback((ok: boolean) => setConnected(ok), []);
-  const open = (s: SymbolInfo) => { setActive(s); setPage("chart"); setLayout(1); };
-  const charts = useMemo(() => Array.from({ length: layout }, (_, i) => ({ ...active, interval: intervals[Math.min(i + intervals.findIndex(x => x.value === interval), intervals.length - 1)].value })), [active, interval, layout]);
-
-  if (page === "watchlist") return <main className="mobile-app watchlist-page">
-    <header className="watchlist-header"><button className="icon-button">•••</button><div className="tv-logo">T7</div><button className="icon-button search-icon">⌕</button></header>
-    <div className="watchlist-tabs"><button className="hamburger">☰</button><button className="list-tab active">Live Market</button><button className="add-list">● {connected ? "Connected" : "Connecting"}</button></div>
-    <Watchlist onOpen={open} /><button className="add-symbol">＋ Add Symbol</button>
-    <nav className="bottom-nav"><button className="nav-item active"><span>▤</span><b>Watchlist</b></button><button className="nav-item" onClick={() => setPage("chart")}><span>⌁</span><b>Chart</b></button><button className="nav-item"><span>◈</span><b>Explore</b></button><button className="nav-item"><span>♧</span><b>Community</b></button><button className="nav-item"><span>☰</span><b>Menu</b></button></nav>
-  </main>;
-
-  return <main className="mobile-app chart-page">
-    <section className={`chart-stage layout-${layout}`}>{charts.map((c, i) => <LiveChart key={`${c.binance}-${c.interval}-${i}`} symbol={c} interval={c.interval as Interval} onConnection={onConnection} />)}</section>
-    <section className="chart-controls">
-      <div className="tool-row"><button className={`tool-button ${toolsOpen ? "active" : ""}`} onClick={() => { setToolsOpen(!toolsOpen); setLayoutOpen(false); }}>✎</button><button className="tool-button more">•••</button></div>
-      {toolsOpen && <div className="tools-menu"><button onClick={() => setToolsOpen(false)}>Trend Line</button><button onClick={() => setToolsOpen(false)}>Horizontal Line</button><button onClick={() => setToolsOpen(false)}>Rectangle</button></div>}
-      <div className="interval-row">{intervals.map(i => <button key={i.value} className={interval === i.value ? "selected" : ""} onClick={() => setInterval(i.value)}>{i.label}</button>)}</div>
-      <div className="layout-row"><button className={`layout-button ${layoutOpen ? "active" : ""}`} onClick={() => { setLayoutOpen(!layoutOpen); setToolsOpen(false); }}>▦ <span>Layout</span></button></div>
-      {layoutOpen && <div className="layout-menu">{[1, 2, 4].map(n => <button key={n} className={layout === n ? "selected" : ""} onClick={() => { setLayout(n); setLayoutOpen(false); }}>{n} Charts</button>)}</div>}
-    </section>
-    <nav className="bottom-nav"><button className="nav-item" onClick={() => setPage("watchlist")}><span>▤</span><b>Watchlist</b></button><button className="nav-item active"><span>⌁</span><b>Chart</b></button><button className="nav-item"><span>◈</span><b>Explore</b></button><button className="nav-item"><span>♧</span><b>Community</b></button><button className="nav-item"><span>☰</span><b>Menu</b></button></nav>
-  </main>;
-}
+export default function Home(){const[page,setPage]=useState<"watchlist"|"chart">("watchlist");const[active,setActive]=useState(symbols[0]);const[interval,setInterval]=useState<Interval>("5m");const[connected,setConnected]=useState(false);const[tools,setTools]=useState(false);const[layout,setLayout]=useState(1);const[layoutOpen,setLayoutOpen]=useState(false);const open=(s:SymbolInfo)=>{setActive(s);setPage("chart")};return page==="watchlist”?<main className="mobile-app watchlist-page"><header className="watchlist-header"><button className="icon-button">•••</button><div className="tv-logo">T7</div><button className="icon-button search-icon">⌕</button></header><div className="watchlist-tabs"><button className="hamburger">☰</button><button className="list-tab active">Live Market</button><button className="add-list">● {connected?"Connected":"Connecting"}</button></div><Watchlist onOpen={open}/><button className="add-symbol">＋ Add Symbol</button><nav className="bottom-nav"><button className="nav-item active"><span>▤</span><b>Watchlist</b></button><button className="nav-item" onClick={()=>setPage("chart")}><span>⌁</span><b>Chart</b></button><button className="nav-item"><span>◈</span><b>Explore</b></button><button className="nav-item"><span>♧</span><b>Community</b></button><button className="nav-item"><span>☰</span><b>Menu</b></button></nav></main>:<main className="mobile-app chart-page"><section className={`chart-stage layout-${layout}`}>{Array.from({length:layout},(_,i)=><LiveChart key={i} symbol={active} interval={intervals[Math.min(intervals.findIndex(x=>x.value===interval)+i,intervals.length-1)].value} onConnection={setConnected}/>)}</section><section className="chart-controls"><div className="tool-row"><button className={`tool-button ${tools?"active":""}`} onClick={()=>{setTools(v=>!v);setLayoutOpen(false)}}>✎</button><button className="tool-button more">•••</button></div>{tools&&<div className="tools-menu"><button onClick={()=>setTools(false)}>Trend Line</button><button onClick={()=>setTools(false)}>Horizontal Line</button><button onClick={()=>setTools(false)}>Rectangle</button></div>}<div className="interval-row">{intervals.map(i=><button key={i.value} className={interval===i.value?"selected":""} onClick={()=>setInterval(i.value)}>{i.label}</button>)}</div><div className="layout-row"><button className={`layout-button ${layoutOpen?"active":""}`} onClick={()=>{setLayoutOpen(v=>!v);setTools(false)}}>▦ <span>Layout</span></button></div>{layoutOpen&&<div className="layout-menu">{[1,2,4].map(n=><button key={n} className={layout===n?"selected":""} onClick={()=>{setLayout(n);setLayoutOpen(false)}}>{n} Charts</button>)}</div>}</section><nav className="bottom-nav"><button className="nav-item" onClick={()=>setPage("watchlist")}><span>▤</span><b>Watchlist</b></button><button className="nav-item active"><span>⌁</span><b>Chart</b></button><button className="nav-item"><span>◈</span><b>Explore</b></button><button className="nav-item"><span>♧</span><b>Community</b></button><button className="nav-item"><span>☰</span><b>Menu</b></button></nav></main>}
