@@ -1,20 +1,26 @@
 export default function Home() {
+  const markets = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT', 'BNB/USDT'];
+
   return (
     <main className="terminal">
-      <header className="topbar">
+      <aside className="watchlist">
         <h1>Tradingwig</h1>
-        <span>Market Terminal</span>
-      </header>
+        <p className="muted">Market Watch</p>
+        {markets.map((m) => (
+          <div className="market" key={m}>{m}<span>--</span></div>
+        ))}
+      </aside>
+
       <section className="workspace">
-        <aside className="watchlist">
-          <h2>Watchlist</h2>
-          {['BTC/USD','ETH/USD','SOL/USD','XAU/USD'].map((x)=>(
-            <div className="asset" key={x}>{x}<b>--</b></div>
-          ))}
-        </aside>
-        <div className="chart">
-          <div className="chart-title">BTC/USD Chart</div>
-          <div className="empty-chart">Chart Workspace</div>
+        <header className="topbar">
+          <b>BTC/USDT</b>
+          <span>1m 5m 15m 1H 4H 1D</span>
+        </header>
+        <div className="chart">Chart Workspace</div>
+        <div className="panels">
+          <div>Orders</div>
+          <div>Positions</div>
+          <div>Portfolio</div>
         </div>
       </section>
     </main>
