@@ -15,13 +15,9 @@ export default function Home() {
         <header className="topbar">
           <b>BTC/USDT</b>
           <span>1m 5m 15m 1H 4H 1D</span>
+          <div className="theme-toggle">☀️ Day &nbsp; 🌙 Night</div>
         </header>
         <div className="chart">Chart Workspace</div>
-        <div className="panels">
-          <div>Orders</div>
-          <div>Positions</div>
-          <div>Portfolio</div>
-        </div>
       </section>
     </main>
   );
