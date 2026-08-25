@@ -1,0 +1,50 @@
+name: Apply candle colors and screen fit
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch UI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('app/page.tsx')
+          s=p.read_text()
+          old='const[tick,setTick]=useState(0),[error,setError]=useState("");'
+          new='const[tick,setTick]=useState(0),[error,setError]=useState("");const[candleColors,setCandleColors]=useState({up:"#08d7a1",down:"#ff5266"}),[showColors,setShowColors]=useState(false);'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='const idx=first+j,xx=left+(idx-start+.5)*gap,up=v.c>=v.o,col=up?"#08d7a1":"#ff5266";'
+          new='const idx=first+j,xx=left+(idx-start+.5)*gap,up=v.c>=v.o,col=up?candleColors.up:candleColors.down;'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='},[interval,symbol.symbol,theme]);'
+          new='},[interval,symbol.symbol,theme,candleColors.up,candleColors.down]);'
+          assert old in s
+          s=s.replace(old,new,1)
+          old='<canvas ref={canvas} className="candle-canvas" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel}/>{error&&<div className="chart-error">{error}</div>}'
+          new='''<canvas ref={canvas} className="candle-canvas" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onWheel={wheel} onDoubleClick={()=>setShowColors(v=>!v)}/>{showColors&&<div className="candle-color-menu" onPointerDown={e=>e.stopPropagation()}><div className="candle-color-title">Candle Colors</div><div className="candle-color-group"><span>Bull</span><div className="candle-color-options">{["#08d7a1","#22c55e","#3b82f6","#f59e0b","#a855f7","#ffffff"].map(c=><button key={c} aria-label={`Bull ${c}`} className={candleColors.up===c?"chosen":""} style={{background:c}} onClick={()=>setCandleColors(v=>({...v,up:c}))}/>)}</div></div><div className="candle-color-group"><span>Bear</span><div className="candle-color-options">{["#ff5266","#ef4444","#f97316","#eab308","#ec4899","#111827"].map(c=><button key={c} aria-label={`Bear ${c}`} className={candleColors.down===c?"chosen":""} style={{background:c}} onClick={()=>setCandleColors(v=>({...v,down:c}))}/>)}</div></div><button className="candle-color-close" onClick={()=>setShowColors(false)}>Done</button></div>}{error&&<div className="chart-error">{error}</div>}'''
+          assert old in s
+          s=s.replace(old,new,1)
+          p.write_text(s)
+
+          p=Path('app/globals.css')
+          s=p.read_text()
+          s += '''\n/* Compact chart controls: keep the whole workspace screen-fit. */\n.chart-controls{height:42px;flex:0 0 42px;position:relative;}\n.chart-controls .tool-row{position:absolute;left:0;top:-48px;width:58px;height:48px;padding:0 8px;border:0;background:transparent;z-index:8;}\n.chart-controls .tool-button{width:42px;height:42px;background:transparent;}\n.chart-controls .layout-row{height:42px;padding:0 16px;border-bottom:0;}\n.chart-controls .theme-controls{position:absolute;right:10px;top:0;height:42px;padding:0;border:0;background:transparent;}\n.candle-color-menu{position:absolute;right:10px;top:44px;z-index:30;width:230px;padding:12px;border:1px solid #30434d;border-radius:12px;background:#0d1a23;box-shadow:0 12px 30px rgba(0,0,0,.38);color:#dce5e8;}\n.candle-color-title{font-size:14px;font-weight:800;margin-bottom:9px;}\n.candle-color-group{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;}\n.candle-color-group>span{font-size:12px;font-weight:700;color:#8fa0a9;width:34px;}\n.candle-color-options{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}\n.candle-color-options button{width:22px;height:22px;border:2px solid #53636c;border-radius:50%;padding:0;}\n.candle-color-options button.chosen{outline:2px solid #b8ee67;outline-offset:2px;}\n.candle-color-close{width:100%;height:30px;margin-top:8px;border:0;border-radius:7px;background:#183522;color:#b8ee67;font-size:12px;font-weight:800;}\n.theme-light .candle-color-menu{background:#fff;border-color:#d7dde1;box-shadow:0 12px 30px rgba(0,0,0,.16);color:#27343b;}\n.theme-light .candle-color-group>span{color:#68757d;}\n@media (max-width:420px){.chart-controls .tool-row{width:54px;padding:0 6px}.chart-controls .layout-row{padding:0 10px}.chart-controls .theme-controls{right:6px}.candle-color-menu{right:6px;width:218px;}}\n'''
+          p.write_text(s)
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx app/globals.css
+          git diff --cached --quiet || git commit -m "Add candle color menu and fit chart UI [skip ci]"
+          git push
+          rm -f .github/workflows/ui-candle-colors.yml
+          git add .github/workflows/ui-candle-colors.yml
+          git commit -m "Remove temporary UI patch workflow [skip ci]"
+          git push
