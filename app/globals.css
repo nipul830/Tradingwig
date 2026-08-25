@@ -32,3 +32,21 @@ button { font: inherit; cursor: pointer; }
 .symbol-picker{position:absolute;z-index:5;top:8px;right:10px}.symbol-picker select{background:#101f29;color:#edf5f7;border:1px solid #30434d;border-radius:6px;padding:6px 24px 6px 8px;font-size:12px;font-weight:700;outline:none}.chart-error{position:absolute;top:102px;left:18px;font-size:12px;color:#ff5266}
 
 .chart-card-wrap{min-width:0;min-height:0;display:flex;flex-direction:column;background:#08131b;overflow:hidden}.chart-card-wrap .chart-card{flex:1;min-height:0}.chart-timeframe{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid #172731;background:#08131b;overflow-x:auto}.tf-label{font-size:12px;font-weight:800;color:#7e919d;flex:0 0 auto}.interval-row{display:flex;align-items:center;gap:3px;min-width:max-content}.interval-row button{height:32px;min-width:42px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:#8fa0a9;font-size:13px;font-weight:700}.interval-row button.selected{background:#183522;color:#b8ee67}.theme-controls{height:48px;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid #172731;color:#7e919d;font-size:12px;font-weight:700}.theme-controls .theme-toggle{margin-left:0}.theme-controls .theme-toggle button{width:30px;height:28px}.theme-light .chart-card-wrap{background:#fff}.theme-light .chart-timeframe{background:#fff;border-top-color:#d9dee2}.theme-light .tf-label{color:#68757d}.theme-light .interval-row button{color:#68757d}.theme-light .interval-row button.selected{background:#e5f5ed;color:#14785f}.theme-light .theme-controls{background:#fff;border-top-color:#d9dee2;color:#68757d}
+
+/* Compact chart controls: keep the whole workspace screen-fit. */
+.chart-controls{height:42px;flex:0 0 42px;position:relative;}
+.chart-controls .tool-row{position:absolute;left:0;top:-48px;width:58px;height:48px;padding:0 8px;border:0;background:transparent;z-index:8;}
+.chart-controls .tool-button{width:42px;height:42px;background:transparent;}
+.chart-controls .layout-row{height:42px;padding:0 16px;border-bottom:0;}
+.chart-controls .theme-controls{position:absolute;right:10px;top:0;height:42px;padding:0;border:0;background:transparent;}
+.candle-color-menu{position:absolute;right:10px;top:44px;z-index:30;width:230px;padding:12px;border:1px solid #30434d;border-radius:12px;background:#0d1a23;box-shadow:0 12px 30px rgba(0,0,0,.38);color:#dce5e8;}
+.candle-color-title{font-size:14px;font-weight:800;margin-bottom:9px;}
+.candle-color-group{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0;}
+.candle-color-group>span{font-size:12px;font-weight:700;color:#8fa0a9;width:34px;}
+.candle-color-options{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;}
+.candle-color-options button{width:22px;height:22px;border:2px solid #53636c;border-radius:50%;padding:0;}
+.candle-color-options button.chosen{outline:2px solid #b8ee67;outline-offset:2px;}
+.candle-color-close{width:100%;height:30px;margin-top:8px;border:0;border-radius:7px;background:#183522;color:#b8ee67;font-size:12px;font-weight:800;}
+.theme-light .candle-color-menu{background:#fff;border-color:#d7dde1;box-shadow:0 12px 30px rgba(0,0,0,.16);color:#27343b;}
+.theme-light .candle-color-group>span{color:#68757d;}
+@media (max-width:420px){.chart-controls .tool-row{width:54px;padding:0 6px}.chart-controls .layout-row{padding:0 10px}.chart-controls .theme-controls{right:6px}.candle-color-menu{right:6px;width:218px;}}
